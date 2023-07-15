@@ -3,6 +3,8 @@ import asyncHandler from "express-async-handler";
 import { protect, admin } from "../Middleware/AuthMiddleware.js";
 import generateToken from "../utils/generateToken.js";
 import User from "./../Models/User.js";
+import nearbyCities from "nearby-cities"
+
 
 const userRouter = express.Router();
 
@@ -90,6 +92,45 @@ userRouter.get(
     }
   })
 );
+userRouter.get(
+  "/user/:id",
+  protect,
+  admin,
+  asyncHandler(async (req, res) => {
+    const user = await User.findById(req.params.id);
+
+    if (user) {
+      res.json({
+        _id: user._id,
+        name: user.name,
+        email: user.email,
+        isAdmin: user.isAdmin,
+        createdAt: user.createdAt,
+        phoneNumber: user.phoneNumber,
+      });
+    } else {
+      res.status(404);
+      throw new Error("User not found");
+    }
+  })
+);
+userRouter.delete(
+  "/user/:id",
+  protect,
+  admin,
+  asyncHandler(async (req, res) => {
+    const user = await User.findByIdAndDelete(req.params.id);
+
+    if (user) {
+      res.json({
+        message: "User Successfully deleted"
+      });
+    } else {
+      res.status(404);
+      throw new Error("User not found");
+    }
+  })
+);
 
 // UPDATE PROFILE
 userRouter.put(
@@ -122,12 +163,28 @@ userRouter.put(
 
 // GET ALL USER ADMIN
 userRouter.get(
-  "/",
+  "/oll",
   protect,
-  // admin,
+  admin,
   asyncHandler(async (req, res) => {
-    const users = await User.find({});
-    res.json(users);
+    const pageSize = 10;
+    const page = Number(req.query.pageNumber) || 1;
+    console.log(req.query.keyword);
+    const keyword = req.query.keyword
+      ? {
+        name: {
+          $regex: req.query.keyword,
+          $options: "i",
+        },
+      }
+      : {};
+
+    const count = await User.countDocuments({ ...keyword });
+    const users = await User.find({ ...keyword })
+      .limit(pageSize)
+      .skip(pageSize * (page - 1))
+      .sort({ _id: -1 });
+    res.json({ users, page, pages: Math.ceil(count / pageSize) });
   })
 );
 
@@ -146,6 +203,28 @@ userRouter.post('/favourites',
     res.json(
 
       user[0].favourites
+    );
+
+  })
+userRouter.post('/location',
+  protect,
+  async (req, res) => {
+    //     var John = people.findOne({name: "John"});
+    // John.friends.push({firstName: "Harry", lastName: "Potter"});
+    // John.save();
+    let { latitude, longitude } = req.body
+    var user = await User.findOne({ _id: req.user });
+    console.log(user);
+    user.location = {
+      type: 'Point',
+      coordinates: [latitude, longitude]
+    }
+    const query = { latitude: 13.4974017, longitude: 39.4707367 }
+    const cities = nearbyCities(query)
+    user.city = cities[0].name ? cities[0].name : "Mekelle"
+    user.save()
+    res.json(
+      user
     );
 
   })

@@ -1,4 +1,15 @@
 import mongoose from "mongoose";
+const LocationSchema = mongoose.Schema({
+  type: {
+    type: String,
+    default: 'Point',
+  },
+  coordinates: {
+    type: [Number],
+    index: "2dsphere"
+  }
+})
+//LocationSchema.index({ location: "2dsphere" });
 
 const Adschema = mongoose.Schema(
   {
@@ -22,14 +33,19 @@ const Adschema = mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: "User"
     },
+
     description: {
       type: String,
       required: true,
+    },
+    city: {
+      type: String,
     },
     price: {
       type: String,
       required: true,
     },
+    location: LocationSchema,
     favourites: [
       {
         add: {
@@ -47,6 +63,7 @@ const Adschema = mongoose.Schema(
 
 // Login
 
+Adschema.index({ location: "2dsphere" })
 
 const User = mongoose.model("Ads", Adschema);
 

@@ -32,10 +32,22 @@ const userSchema = mongoose.Schema(
         ref: 'Ads',
       }
     ],
+    location: {
+      type: {
+        type: String,
+        default: 'Point',
+      },
+      coordinates: {
+        type: [Number]
+      }
+    },
     profile: {
       type: String,
       default: "http://10.0.0.2:5000/guy.png"
-    }
+    },
+    city: {
+      type: String,
+    },
   },
   {
     timestamps: true,

@@ -5,11 +5,14 @@ import { admin, protect } from "../Middleware/AuthMiddleware.js";
 import multer from 'multer';
 import path from 'path';
 import { log } from "console";
+import User from "../Models/User.js";
+import moment from 'moment'
 const Adsrouter = express.Router();
 var storage = multer.diskStorage({
   destination: 'images',
   // function(req, file, cb) {
   //   cb(null, path.join('D:', 'desta', '/server'));
+  // },
   // },
   filename: (req, file, cb) => {
     cb(null, file.fieldname + '_' + Date.now() + path.extname(file.originalname))
@@ -37,9 +40,127 @@ Adsrouter.get(
   "/",
 
   asyncHandler(async (req, res) => {
-    const pageSize = 12;
+    const pageSize = 6;
     const page = Number(req.query.pageNumber) || 1;
     const { catagory } = req.body
+    const { distance } = req.body
+    const { tags, longitude, latitude } = req.body
+    const keyword = req.query.keyword
+      ? {
+        title: {
+          $regex: req.query.keyword,
+          $options: "i",
+        },
+      }
+      : {};
+
+    var counter;
+    if (tags && distance && longitude && latitude) {
+      console.log('we are hitting here');
+      if (req.query.keyword) {
+        console.log('nice');
+        counter = await Ads.find({
+          ...keyword,
+          catagory: { $in: tags },
+          location: {
+            $near: {
+              $maxDistance: distance * 1000,
+              // distance in meters
+              $geometry: {
+                type: 'Point',
+                coordinates: [latitude, longitude]
+
+              }
+            }
+          }
+        });
+      }
+      else {
+        console.log('bro');
+        counter = await Ads.find({
+          catagory: { $in: tags },
+          location: {
+            $near: {
+              $maxDistance: distance * 1000,
+              // distance in meters
+              $geometry: {
+                type: 'Point',
+                coordinates: [latitude, longitude]
+
+              }
+            }
+          }
+        });
+      }
+
+      const adds = await Ads.find({
+        ...keyword,
+        catagory: { $in: tags },
+        location: {
+          $near: {
+            $maxDistance: distance * 1000,
+            // distance in meters
+            $geometry: {
+              type: 'Point',
+              coordinates: [latitude, longitude]
+
+            }
+          }
+        }
+      })
+        .limit(pageSize)
+        .skip(pageSize * (page - 1))
+        .sort({ _id: -1 });
+      //res.json(adds);
+      console.log(counter)
+      console.log('counter')
+      res.json({ adds: adds ? adds : [], page, pages: Math.ceil((counter ? counter.length : 0) / pageSize) ? Math.ceil((counter ? counter.length : 0) / pageSize) : 0 });
+    }
+    else if (tags && !distance && !longitude && !latitude) {
+      var countproitem;
+
+      if (req.query.keyword) {
+        countproitem = await Ads.countDocuments({ ...keyword, catagory: { $in: tags }, });
+      }
+      else {
+        countproitem = await Ads.countDocuments({ ...keyword, catagory: { $in: tags }, });
+      }
+      const adds = await Ads.find({ ...keyword, catagory: { $in: tags }, })
+        .limit(pageSize)
+        .skip(pageSize * (page - 1))
+        .sort({ _id: -1 });
+      //res.json(adds);
+
+      res.json({ adds, page, pages: Math.ceil(countproitem / pageSize) });
+    }
+    else {
+      var countpro;
+
+      if (req.query.keyword) {
+        countpro = await Ads.countDocuments({ ...keyword });
+      }
+      else {
+        countpro = await Ads.countDocuments();
+      }
+      const adds = await Ads.find({ ...keyword })
+        .limit(pageSize)
+        .skip(pageSize * (page - 1))
+        .sort({ _id: -1 });
+      //res.json(adds);
+
+      res.json({ adds, page, pages: Math.ceil(countpro / pageSize) });
+    }
+
+
+  })
+);
+Adsrouter.get(
+  "/oll",
+  protect,
+  admin,
+  asyncHandler(async (req, res) => {
+    const pageSize = 10;
+    const page = Number(req.query.pageNumber) || 1;
     const keyword = req.query.keyword
       ? {
         title: {
@@ -49,12 +170,11 @@ Adsrouter.get(
       }
       : {};
     const count = await Ads.countDocuments({ ...keyword });
-    const products = await Ads.find({ ...keyword })
-      // .limit(pageSize)
-      // .skip(pageSize * (page - 1))
+    const adds = await Ads.find({ ...keyword })
+      .limit(pageSize)
+      .skip(pageSize * (page - 1))
       .sort({ _id: -1 });
-    res.json(products);
-    // res.json({ products, page, pages: Math.ceil(count / pageSize) });
+    res.json({ adds, page, pages: Math.ceil(count / pageSize) });
   })
 );
 
@@ -150,9 +270,8 @@ Adsrouter.delete(
   protect,
   admin,
   asyncHandler(async (req, res) => {
-    const product = await Ads.findById(req.params.id);
+    const product = await Ads.findByIdAndDelete(req.params.id);
     if (product) {
-      await product.remove();
       res.json({ message: "Product deleted" });
     } else {
       res.status(404);
@@ -168,7 +287,7 @@ Adsrouter.post(
     let imagepro = []
     let istrue = true;
     for (let i = 0; i < req.files.length; i++) {
-      imagepro.push({ url: 'http://192.168.43.34:5000/' + req.files[i].filename, isprimary: istrue });
+      imagepro.push({ url: process.env.SERVERURL + req.files[i].filename, isprimary: istrue });
       istrue = false
     }
     //console.log(imagepro)
@@ -197,7 +316,9 @@ Adsrouter.post(
         description,
         catagory,
         postedBy: req.user._id,
-        price
+        price,
+        location: req.user.location,
+        city: req.user.city
 
       });
       if (ad) {
@@ -235,6 +356,47 @@ Adsrouter.put(
     }
   })
 );
+
+
+Adsrouter.get('/all/dashboared', async (req, res) => {
+  const adds = await Ads.countDocuments();
+  const users = await User.countDocuments();
+  var todaystart = moment().startOf('day');
+  // end today
+  var thismonthstart = moment().startOf('month');   // set to the first of this month, 12:00 am
+  var thisyearstart = moment().startOf('year');   // set to the first of this month, 12:00 am
+  var thisweekstart = moment().startOf('week');
+  var end = moment(todaystart).endOf('day');
+
+  const todayadd = await Ads.find({ createdAt: { '$gte': todaystart, '$lte': end } })
+  const thisweekadd = await Ads.find({ createdAt: { '$gte': thisweekstart, '$lte': end } })
+  const thismonthadd = await Ads.find({ createdAt: { '$gte': thismonthstart, '$lte': end } })
+  const todayuser = await User.find({ createdAt: { '$gte': todaystart, '$lte': end } })
+  const thisweekuser = await User.find({ createdAt: { '$gte': thisweekstart, '$lte': end } })
+  const thismonthuser = await User.find({ createdAt: { '$gte': thismonthstart, '$lte': end } })
+  const thisyearuser = await User.find({ createdAt: { '$gte': thisyearstart, '$lte': end } })
+  //users,
+  //adds,
+  if (users) {
+    res.json({
+      users,
+      adds,
+      todayadd,
+      thisweekadd,
+      thismonthadd,
+      todayuser,
+      thisweekuser,
+      thismonthuser,
+      thisyearuser
+    })
+  }
+  else {
+
+    res.status(404).json({
+      message: "Error on sending"
+    })
+  }
+})
 export default Adsrouter;
 
 

@@ -4,7 +4,7 @@ import mongoose from "mongoose";
 const connectDatabase = async () => {
   try {
     mongoose.set('strictQuery', true);
-    const conn = await mongoose.connect('mongodb://127.0.0.1:27017/desta1', {
+    const conn = await mongoose.connect(process.env.MONGOURL, {
       useUnifiedTopology: true,
       useNewUrlParser: true,
     });
