@@ -26,7 +26,8 @@
     "nearby-cities": "^1.1.0",
     "node-geocoder": "^4.2.0",
     "socket.io": "4.6.1",
-    "uuid": "^8.3.2"
+    "uuid": "^8.3.2",
+    "moment": "^2.29.4",
   },
   "devDependencies": {
     "concurrently": "^7.0.0",
